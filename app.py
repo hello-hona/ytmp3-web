@@ -3,10 +3,84 @@ from fastapi import FastAPI, HTTPException, Body, Request
 from fastapi.responses import FileResponse, JSONResponse, HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 
+# ---- 허용 옵션(화이트리스트) 정의 ----
+ALLOWED = {
+    "--audio-format":   {"arity": 1, "choices": {"mp3","m4a","flac","wav","opus"}},
+    "--audio-quality":  {"arity": 1, "pattern": r"^(?:0|[1-9]|10)$"},
+    "--embed-thumbnail":{"arity": 0},
+    "--convert-thumbnails": {"arity": 1, "choices": {"jpg","png","webp"}},  # 보통 'jpg'
+    "--embed-metadata": {"arity": 0},
+}
+
 APP_API_KEY = os.getenv("API_KEY", "")  # 배포 환경변수로 세팅
 PORT = int(os.getenv("PORT", "8080"))  # PaaS 기본 포트를 따라감
 
 app = FastAPI(title="YT -> MP3 (personal)")
+
+
+def _validate_args(raw_args):
+    args = []
+    i = 0
+    while i < len(raw_args):
+        flag = raw_args[i]
+        spec = ALLOWED.get(flag)
+        if not spec:
+            raise HTTPException(400, f"허용되지 않은 옵션: {flag}")
+        arity = spec.get("arity", 0)
+        vals = []
+        for j in range(arity):
+            if i+1+j >= len(raw_args):
+                raise HTTPException(400, f"{flag} 옵션에 값이 필요합니다")
+            vals.append(raw_args[i+1+j])
+        if "choices" in spec and vals and vals[0] not in spec["choices"]:
+            raise HTTPException(400, f"{flag} 값 허용범위 아님: {vals[0]}")
+        if "pattern" in spec and vals and not re.match(spec["pattern"], vals[0]):
+            raise HTTPException(400, f"{flag} 값 형식 오류: {vals[0]}")
+        args.append(flag); args.extend(vals)
+        i += 1 + arity
+    return args
+
+@app.post("/cli")
+def cli(body = Body(...)):
+    url = (body or {}).get("url","").strip()
+    raw_args = (body or {}).get("args", [])
+    if not url.startswith(("http://","https://")):
+        raise HTTPException(400, "유효한 URL")
+
+    # 화이트리스트 검증
+    safe = _validate_args(raw_args)
+
+    workdir = tempfile.mkdtemp(prefix="ytmp3_")
+    out_tpl = os.path.join(workdir, "%(title)s.%(ext)s")
+
+    # 강제: 오디오 추출 + 출력 경로(사용자 -o 금지)
+    if "-o" in safe or "--output" in safe:
+        raise HTTPException(400, "출력 경로 옵션은 허용되지 않습니다")
+    safe = ["-x"] + safe + ["-o", out_tpl]
+
+    # UA 기본값
+    ua = os.getenv("YTDLP_UA", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+    safe += ["--user-agent", ua]
+
+    # 서버 저장 쿠키 자동 사용(있으면)
+    cookies_text = os.getenv("YTDLP_COOKIES", "").strip()
+    if cookies_text:
+        cookie_file = os.path.join(workdir, "cookies.txt")
+        with open(cookie_file, "w", encoding="utf-8") as f:
+            f.write(cookies_text)
+        safe += ["--cookies", cookie_file]
+
+    # 실행
+    cmd = ["yt-dlp"] + safe + [url]
+    p = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    if p.returncode != 0:
+        raise HTTPException(500, f"실패:\n{p.stderr}")
+
+    # 결과 전송
+    mp3s = glob.glob(os.path.join(workdir, "*.mp3"))
+    if not mp3s:
+        raise HTTPException(500, "결과 파일이 없습니다")
+    return FileResponse(mp3s[0], filename=f"{uuid.uuid4().hex}.mp3", media_type="audio/mpeg")
 
 # CORS: 필요한 도메인만 넣으세요 (개인용이면 대략 허용해도 무방)
 app.add_middleware(
