@@ -1,4 +1,4 @@
-import os, tempfile, uuid, shlex, subprocess, glob, re
+import os, tempfile, uuid, shlex, subprocess, glob, re, json, time
 from fastapi import FastAPI, HTTPException, Body, Request
 from fastapi.responses import FileResponse, JSONResponse, HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -215,8 +215,11 @@ def cli(body = Body(...)):
     # 서버 저장 쿠키 자동 사용 (YTDLP_COOKIES)
     cookies_text = os.getenv("YTDLP_COOKIES", "").strip()
     if cookies_text:
-        # 따옴표 없이 key=value; key2=value2; ... 한 줄이어야 함
-        safe += ["--add-header", f"Cookie: {cookies_text}"]
+        cookie_file = os.path.join(workdir, "cookies.txt")
+        ok = write_netscape_cookiefile_from_env(cookies_text, cookie_file)
+        if ok:
+            safe += ["--cookies", cookie_file]
+
 
     # 실행
     cmd = ["yt-dlp"] + safe + [url]
@@ -228,3 +231,69 @@ def cli(body = Body(...)):
     if not mp3s:
         raise HTTPException(500, "결과 파일이 없습니다")
     return FileResponse(mp3s[0], filename=f"{uuid.uuid4().hex}.mp3", media_type="audio/mpeg")
+
+def write_netscape_cookiefile_from_env(cookies_env: str, out_path: str):
+    """
+    YTDLP_COOKIES 값이 EditThisCookie JSON이면 Netscape cookies.txt로 변환해 저장.
+    key=value; ... 문자열일 경우에도 최소 필드로 변환 시도.
+    """
+    cookies_env = (cookies_env or "").strip()
+    if not cookies_env:
+        return False
+
+    lines = ["# Netscape HTTP Cookie File"]
+    now = int(time.time())
+    default_exp = now + 90 * 24 * 3600  # 90일
+
+    def add_line(domain, hostOnly, path, secure, exp, name, value):
+        # Netscape: domain \t includeSubdomains \t path \t secure \t expiry \t name \t value
+        include_sub = "FALSE" if hostOnly else "TRUE"
+        if not hostOnly and not domain.startswith("."):
+            domain = "." + domain
+        lines.append("\t".join([
+            domain,
+            include_sub,
+            path or "/",
+            "TRUE" if secure else "FALSE",
+            str(int(exp or default_exp)),
+            name,
+            value,
+        ]))
+
+    try:
+        # JSON 배열이면 (EditThisCookie export)
+        if cookies_env.lstrip().startswith("["):
+            arr = json.loads(cookies_env)
+            for c in arr:
+                add_line(
+                    domain=c.get("domain",".youtube.com"),
+                    hostOnly=bool(c.get("hostOnly", False)),
+                    path=c.get("path","/"),
+                    secure=bool(c.get("secure", True)),
+                    exp=c.get("expirationDate", default_exp),
+                    name=c["name"],
+                    value=c["value"],
+                )
+        else:
+            # "NAME=VALUE; NAME2=VALUE2; ..." 단순 문자열일 때
+            pairs = [p.strip() for p in cookies_env.split(";") if p.strip()]
+            for p in pairs:
+                if "=" not in p: 
+                    continue
+                name, value = p.split("=", 1)
+                add_line(
+                    domain=".youtube.com",
+                    hostOnly=False,
+                    path="/",
+                    secure=True,
+                    exp=default_exp,
+                    name=name.strip(),
+                    value=value.strip(),
+                )
+    except Exception as e:
+        # 실패 시 false 반환
+        return False
+
+    with open(out_path, "w", encoding="utf-8") as f:
+        f.write("\n".join(lines) + "\n")
+    return True
