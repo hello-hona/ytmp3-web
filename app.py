@@ -38,14 +38,115 @@ def healthz():
 @app.get("/", response_class=HTMLResponse)
 def home():
     return """
-<!doctype html><meta charset="utf-8">
-<title>YouTube to MP3</title>
+<!doctype html>
+<html lang="ko">
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>YouTube → MP3 (웹 UI)</title>
 <body style="font-family:system-ui;max-width:760px;margin:36px auto;padding:0 16px;">
-  <h1>YouTube to MP3</h1>
-  <p>이 페이지는 /cli API를 위한 간단 UI가 포함된 <code>index.html</code>을 정적 파일로 서빙하지 않습니다.<br>
-  리포의 <code>index.html</code>을 브라우저로 직접 열어 사용하거나, 해당 파일을 / 로 서빙하도록 Nginx 등 앞단을 두어도 됩니다.</p>
-  <p>상태 체크: <a href="/healthz">/healthz</a></p>
-</body>"""
+  <h1 style="margin-bottom:12px;">YouTube → MP3</h1>
+
+  <label>API Key
+    <input id="key" type="password" placeholder="API Key"
+           style="width:100%;padding:10px;margin:6px 0 12px 0;">
+  </label>
+
+  <label>YouTube URL
+    <input id="url" type="url" placeholder="https://www.youtube.com/watch?v=..."
+           style="width:100%;padding:10px;margin:6px 0 16px 0;">
+  </label>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+    <label>Audio format
+      <select id="fmt" style="width:100%;padding:10px;">
+        <option value="mp3">mp3</option>
+        <option value="m4a">m4a</option>
+        <option value="flac">flac</option>
+        <option value="wav">wav</option>
+        <option value="opus">opus</option>
+      </select>
+    </label>
+    <label>Audio quality (0=best)
+      <select id="aq" style="width:100%;padding:10px;">
+        <option value="0">0 (best)</option>
+        <option value="1">1</option><option value="2">2</option>
+        <option value="3">3</option><option value="4">4</option>
+        <option value="5">5</option><option value="6">6</option>
+        <option value="7">7</option><option value="8">8</option>
+        <option value="9">9</option><option value="10">10</option>
+      </select>
+    </label>
+  </div>
+
+  <div style="margin-top:14px;">
+    <label style="display:block;margin:6px 0;">
+      <input type="checkbox" id="embedMeta"> 메타데이터 임베드 (--embed-metadata)
+    </label>
+    <label style="display:block;margin:6px 0;">
+      <input type="checkbox" id="embedThumb"> 썸네일 임베드 (--embed-thumbnail)
+    </label>
+    <div style="display:flex;gap:8px;align-items:center;margin:6px 0;">
+      <label><input type="checkbox" id="convThumb"> 썸네일 변환 (--convert-thumbnails)</label>
+      <select id="thumbFmt" style="padding:8px;">
+        <option value="jpg">jpg</option>
+        <option value="png">png</option>
+        <option value="webp">webp</option>
+      </select>
+    </div>
+  </div>
+
+  <button id="go" style="margin-top:14px;padding:12px 16px;font-size:16px;">Convert & Download</button>
+  <span id="status" style="margin-left:10px;color:#666;"></span>
+
+  <script>
+    const keyEl = document.getElementById('key');
+    keyEl.value = localStorage.getItem('apiKey') || '';
+    keyEl.addEventListener('change', () => localStorage.setItem('apiKey', keyEl.value));
+
+    async function convert() {
+      const key = keyEl.value.trim();
+      const url = document.getElementById('url').value.trim();
+      const fmt = document.getElementById('fmt').value;
+      const aq  = document.getElementById('aq').value;
+      const embedMeta  = document.getElementById('embedMeta').checked;
+      const embedThumb = document.getElementById('embedThumb').checked;
+      const convThumb  = document.getElementById('convThumb').checked;
+      const thumbFmt   = document.getElementById('thumbFmt').value;
+      const status = document.getElementById('status');
+
+      if (!url) { alert('YouTube URL을 입력하세요'); return; }
+      if (!key) { alert('API Key를 입력하세요'); return; }
+
+      const args = ["--audio-format", fmt, "--audio-quality", aq];
+      if (embedMeta)  args.push("--embed-metadata");
+      if (embedThumb) args.push("--embed-thumbnail");
+      if (convThumb)  args.push("--convert-thumbnails", thumbFmt);
+
+      status.textContent = "변환 중...";
+
+      try{
+        const res = await fetch("/cli", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "X-API-Key": key },
+          body: JSON.stringify({ url, args })
+        });
+        if (!res.ok) throw new Error(await res.text());
+        const blob = await res.blob();
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = "audio.mp3";
+        a.click();
+        URL.revokeObjectURL(a.href);
+        status.textContent = "완료!";
+      }catch(e){
+        status.textContent = "오류: " + e.message;
+      }
+    }
+    document.getElementById('go').addEventListener('click', convert);
+  </script>
+</body>
+</html>
+"""
 
 # ── yt-dlp 화이트리스트 ───────────────────────────────────────────────
 ALLOWED = {
