@@ -215,10 +215,8 @@ def cli(body = Body(...)):
     # 서버 저장 쿠키 자동 사용 (YTDLP_COOKIES)
     cookies_text = os.getenv("YTDLP_COOKIES", "").strip()
     if cookies_text:
-        cookie_file = os.path.join(workdir, "cookies.txt")
-        with open(cookie_file, "w", encoding="utf-8") as f:
-            f.write(cookies_text)
-        safe += ["--cookies", cookie_file]
+        # 따옴표 없이 key=value; key2=value2; ... 한 줄이어야 함
+        safe += ["--add-header", f"Cookie: {cookies_text}"]
 
     # 실행
     cmd = ["yt-dlp"] + safe + [url]
