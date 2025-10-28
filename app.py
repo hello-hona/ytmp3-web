@@ -19,11 +19,16 @@ app.add_middleware(
 # ── 미들웨어: /, /healthz는 오픈, 그 외는 API Key 필수 ─────────────────────
 @app.middleware("http")
 async def api_key_guard(request: Request, call_next):
-    open_paths = {"/", "/healthz"}
-    if APP_API_KEY and request.url.path not in open_paths:
+    # 여기에 index.html을 추가
+    open_paths = {"/", "/healthz", "/index.html"}
+    # 정적 파일도 쓸 거면 /static 같은 prefix도 허용
+    if (APP_API_KEY
+        and request.url.path not in open_paths
+        and not request.url.path.startswith("/static")):
         if request.headers.get("x-api-key") != APP_API_KEY:
             return JSONResponse({"error": "unauthorized"}, status_code=401)
     return await call_next(request)
+
 
 @app.get("/healthz")
 def healthz():
