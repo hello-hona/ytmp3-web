@@ -220,7 +220,6 @@ def cli(body = Body(...)):
         if ok:
             safe += ["--cookies", cookie_file]
 
-
     # 실행
     cmd = ["yt-dlp"] + safe + [url]
     p = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
@@ -232,21 +231,24 @@ def cli(body = Body(...)):
         raise HTTPException(500, "결과 파일이 없습니다")
     return FileResponse(mp3s[0], filename=f"{uuid.uuid4().hex}.mp3", media_type="audio/mpeg")
 
+
 def write_netscape_cookiefile_from_env(cookies_env: str, out_path: str):
-    """
-    YTDLP_COOKIES 값이 EditThisCookie JSON이면 Netscape cookies.txt로 변환해 저장.
-    key=value; ... 문자열일 경우에도 최소 필드로 변환 시도.
-    """
-    cookies_env = (cookies_env or "").strip()
-    if not cookies_env:
+    s = (cookies_env or "").strip()
+    if not s:
         return False
 
+    # 1) 이미 Netscape 포맷이면 그대로 저장
+    if s.startswith("# Netscape HTTP Cookie File"):
+        with open(out_path, "w", encoding="utf-8") as f:
+            f.write(s if s.endswith("\n") else s + "\n")
+        return True
+
+    # 2) EditThisCookie JSON 배열이면 변환
     lines = ["# Netscape HTTP Cookie File"]
     now = int(time.time())
-    default_exp = now + 90 * 24 * 3600  # 90일
+    default_exp = now + 90 * 24 * 3600
 
     def add_line(domain, hostOnly, path, secure, exp, name, value):
-        # Netscape: domain \t includeSubdomains \t path \t secure \t expiry \t name \t value
         include_sub = "FALSE" if hostOnly else "TRUE"
         if not hostOnly and not domain.startswith("."):
             domain = "." + domain
@@ -261,9 +263,8 @@ def write_netscape_cookiefile_from_env(cookies_env: str, out_path: str):
         ]))
 
     try:
-        # JSON 배열이면 (EditThisCookie export)
-        if cookies_env.lstrip().startswith("["):
-            arr = json.loads(cookies_env)
+        if s.lstrip().startswith("["):
+            arr = json.loads(s)
             for c in arr:
                 add_line(
                     domain=c.get("domain",".youtube.com"),
@@ -275,8 +276,8 @@ def write_netscape_cookiefile_from_env(cookies_env: str, out_path: str):
                     value=c["value"],
                 )
         else:
-            # "NAME=VALUE; NAME2=VALUE2; ..." 단순 문자열일 때
-            pairs = [p.strip() for p in cookies_env.split(";") if p.strip()]
+            # 3) name=value; ... 문자열일 때 최소 변환
+            pairs = [p.strip() for p in s.split(";") if p.strip()]
             for p in pairs:
                 if "=" not in p: 
                     continue
@@ -290,8 +291,7 @@ def write_netscape_cookiefile_from_env(cookies_env: str, out_path: str):
                     name=name.strip(),
                     value=value.strip(),
                 )
-    except Exception as e:
-        # 실패 시 false 반환
+    except Exception:
         return False
 
     with open(out_path, "w", encoding="utf-8") as f:
