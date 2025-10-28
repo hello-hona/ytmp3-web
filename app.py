@@ -25,11 +25,13 @@ def _run(cmd: str):
 
 @app.middleware("http")
 async def api_key_guard(request: Request, call_next):
-    # 간단 인증 (브라우저 호출이면 프런트 fetch에 헤더 추가)
-    if APP_API_KEY:
+    # ✅ 이 두 경로는 누구나 접근 허용
+    open_paths = {"/", "/healthz"}
+    if APP_API_KEY and request.url.path not in open_paths:
         if request.headers.get("x-api-key") != APP_API_KEY:
-            return JSONResponse({"error":"unauthorized"}, status_code=401)
+            return JSONResponse({"error": "unauthorized"}, status_code=401)
     return await call_next(request)
+
 
 @app.get("/healthz")
 def healthz():
