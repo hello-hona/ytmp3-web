@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 APP_API_KEY = os.getenv("API_KEY", "")
 PORT = int(os.getenv("PORT", "8080"))
 
-app = FastAPI(title="YT -> MP3 (personal)")
+app = FastAPI(title="YT to MP3 (personal)")
 
 app.add_middleware(
     CORSMiddleware,
@@ -39,9 +39,9 @@ def healthz():
 def home():
     return """
 <!doctype html><meta charset="utf-8">
-<title>YouTube → MP3</title>
+<title>YouTube to MP3</title>
 <body style="font-family:system-ui;max-width:760px;margin:36px auto;padding:0 16px;">
-  <h1>YouTube → MP3</h1>
+  <h1>YouTube to MP3</h1>
   <p>이 페이지는 /cli API를 위한 간단 UI가 포함된 <code>index.html</code>을 정적 파일로 서빙하지 않습니다.<br>
   리포의 <code>index.html</code>을 브라우저로 직접 열어 사용하거나, 해당 파일을 / 로 서빙하도록 Nginx 등 앞단을 두어도 됩니다.</p>
   <p>상태 체크: <a href="/healthz">/healthz</a></p>
