@@ -67,13 +67,13 @@ def home():
 <!doctype html>
 <html lang="ko">
 <meta charset="utf-8">
-<title>YT -> MP3 개인용</title>
+<title>hello hona</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <body style="font-family:system-ui;max-width:720px;margin:40px auto;padding:0 16px;">
-<h1>유튜브 -> MP3</h1>
+<h1>YouTube -> MP3</h1>
 <input id="yt" placeholder="YouTube URL" style="width:100%;padding:10px;font-size:16px;" />
 <input id="key" placeholder="API Key (배포시 설정)" style="width:100%;padding:10px;font-size:16px;margin-top:8px;" />
-<button id="go" style="margin-top:12px;padding:10px 16px;font-size:16px;">MP3 다운로드</button>
+<button id="go" style="margin-top:12px;padding:10px 16px;font-size:16px;">Convert!</button>
 <p id="s"></p>
 <script>
   const go = document.getElementById('go');
