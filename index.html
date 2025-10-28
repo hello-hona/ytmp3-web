@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="ko">
+<meta charset="utf-8" />
+<title>YT -> MP3 (프런트 예시)</title>
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<body style="font-family:system-ui;max-width:720px;margin:40px auto;padding:0 16px;">
+  <h1>유튜브 -> MP3 (API 호출 예시)</h1>
+  <input id="api" placeholder="API URL (예: https://your-app.onrender.com)" style="width:100%;padding:10px;font-size:16px;">
+  <input id="key" placeholder="API Key" style="width:100%;padding:10px;font-size:16px;margin-top:8px;">
+  <input id="yt" placeholder="YouTube URL" style="width:100%;padding:10px;font-size:16px;margin-top:8px;">
+  <button id="go" style="margin-top:12px;padding:10px 16px;font-size:16px;">다운로드</button>
+  <p id="s"></p>
+
+  <script>
+    document.getElementById('go').onclick = async () => {
+      const api = document.getElementById('api').value.trim();
+      const key = document.getElementById('key').value.trim();
+      const url = document.getElementById('yt').value.trim();
+      const s = document.getElementById('s');
+      if(!api || !url){ alert('API URL과 YouTube URL을 입력'); return; }
+      s.textContent = '변환 중...';
+      try{
+        const res = await fetch(api.replace(/\/+$/,'') + '/download', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-API-Key': key },
+          body: JSON.stringify({ url })
+        });
+        if(!res.ok){
+          const t = await res.text();
+          throw new Error(t);
+        }
+        const blob = await res.blob();
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'audio.mp3';
+        a.click();
+        URL.revokeObjectURL(a.href);
+        s.textContent = '완료!';
+      }catch(e){
+        s.textContent = '오류: ' + e.message;
+      }
+    };
+  </script>
+</body>
+</html>
