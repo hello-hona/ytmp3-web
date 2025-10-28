@@ -3,23 +3,19 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>YouTube → MP3 (웹 UI)</title>
-
 <body style="font-family:system-ui;max-width:760px;margin:36px auto;padding:0 16px;">
   <h1 style="margin-bottom:12px;">YouTube → MP3</h1>
 
-  <!-- API 키 (서버의 API_KEY와 동일해야 함) -->
   <label>API Key
     <input id="key" type="password" placeholder="API Key"
            style="width:100%;padding:10px;margin:6px 0 12px 0;">
   </label>
 
-  <!-- URL 입력 -->
   <label>YouTube URL
     <input id="url" type="url" placeholder="https://www.youtube.com/watch?v=..."
            style="width:100%;padding:10px;margin:6px 0 16px 0;">
   </label>
 
-  <!-- 옵션들 -->
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
     <label>Audio format
       <select id="fmt" style="width:100%;padding:10px;">
@@ -30,8 +26,7 @@
         <option value="opus">opus</option>
       </select>
     </label>
-
-    <label>Audio quality (0 = 최고)
+    <label>Audio quality (0=best)
       <select id="aq" style="width:100%;padding:10px;">
         <option value="0">0 (best)</option>
         <option value="1">1</option><option value="2">2</option>
@@ -50,7 +45,6 @@
     <label style="display:block;margin:6px 0;">
       <input type="checkbox" id="embedThumb"> 썸네일 임베드 (--embed-thumbnail)
     </label>
-
     <div style="display:flex;gap:8px;align-items:center;margin:6px 0;">
       <label><input type="checkbox" id="convThumb"> 썸네일 변환 (--convert-thumbnails)</label>
       <select id="thumbFmt" style="padding:8px;">
@@ -65,7 +59,6 @@
   <span id="status" style="margin-left:10px;color:#666;"></span>
 
   <script>
-    // 마지막 API Key 기억 (localStorage)
     const keyEl = document.getElementById('key');
     keyEl.value = localStorage.getItem('apiKey') || '';
     keyEl.addEventListener('change', () => localStorage.setItem('apiKey', keyEl.value));
@@ -84,42 +77,31 @@
       if (!url) { alert('YouTube URL을 입력하세요'); return; }
       if (!key) { alert('API Key를 입력하세요'); return; }
 
-      // 허용된 플래그만 args에 담기 (서버 화이트리스트와 일치)
-      const args = [
-        "--audio-format", fmt,
-        "--audio-quality", aq
-      ];
+      const args = ["--audio-format", fmt, "--audio-quality", aq];
       if (embedMeta)  args.push("--embed-metadata");
       if (embedThumb) args.push("--embed-thumbnail");
       if (convThumb)  args.push("--convert-thumbnails", thumbFmt);
 
-      status.textContent = "변환 중... 잠시만요.";
+      status.textContent = "변환 중...";
 
-      try {
+      try{
         const res = await fetch("/cli", {
           method: "POST",
           headers: { "Content-Type": "application/json", "X-API-Key": key },
           body: JSON.stringify({ url, args })
         });
-
-        if (!res.ok) {
-          const text = await res.text();
-          throw new Error(text || ("HTTP " + res.status));
-        }
-
-        // 다운로드
+        if (!res.ok) throw new Error(await res.text());
         const blob = await res.blob();
         const a = document.createElement("a");
         a.href = URL.createObjectURL(blob);
-        a.download = "audio.mp3"; // 서버가 uuid로 내려주므로 여기 이름은 임시
+        a.download = "audio.mp3";
         a.click();
         URL.revokeObjectURL(a.href);
         status.textContent = "완료!";
-      } catch (e) {
+      }catch(e){
         status.textContent = "오류: " + e.message;
       }
     }
-
     document.getElementById('go').addEventListener('click', convert);
   </script>
 </body>
