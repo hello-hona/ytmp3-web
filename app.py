@@ -37,7 +37,9 @@ def healthz():
 # ── 홈: 간단 안내 페이지 ────────────────────────────────────────────────
 @app.get("/", response_class=HTMLResponse)
 def home():
-    return """
+    # 여기에 index.html 내용(웹 UI) 그대로 반환
+    return YOUR_INDEX_HTML_STRING
+
 <!doctype html><meta charset="utf-8">
 <title>YouTube → MP3</title>
 <body style="font-family:system-ui;max-width:760px;margin:36px auto;padding:0 16px;">
